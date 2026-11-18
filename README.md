@@ -6,11 +6,25 @@ Unofficial, free, offline webapp to create multisample banks for Plinky 12 from 
 
 1. Open the page and drop up to 8 samples. Name each file with its note: `piano_C3.wav`, `Eb2.wav`, `sax-060.wav`.
 2. Set the bank name and artist folder.
-3. Pick the instrument type: **Piano / one-shot** or **Wind / strings / voice (loop)**.
-4. Choose an output folder (or download a ZIP) and create the bank.
-5. Copy the `artists` folder into `PLINKY/BANKS/` on the card. Back up the card first.
+3. Choose **Banks loaded together** (1 to 4): how many of your banks you want to play at the same time.
+4. Pick the instrument type: **Piano / one-shot** or **Wind / strings / voice (loop)**.
+5. Choose an output folder (or download a ZIP) and create the bank.
+6. Copy the `artists` folder into `PLINKY/BANKS/` on the card. Back up the card first.
 
 Each bank gets 8 presets (00 to 07). Your samples are processed only in your browser: nothing is uploaded.
+
+## Memory: how many banks at once
+
+Plinky 12 keeps the samples of every loaded sound in 14 MB of memory (about 114 s of audio). The **Banks loaded together** option sets how much audio one bank may use, so that the chosen number of banks fits:
+
+| Banks together | Audio per bank | Size | Per note (8 samples) | For |
+|---|---|---|---|---|
+| 1 | about 65 s | about 8 MB | about 8 s | one sound at a time |
+| 2 | 50 s | about 6 MB | about 6 s | |
+| 3 | 33 s | about 4 MB | about 4 s | NEVE (3 voices) |
+| 4 | 25 s | about 3 MB | about 3 s | QU4TTRO (4 tracks) |
+
+Long samples are shortened evenly and faded out. Sustained sounds keep looping, so they lose little; pianos and plucks get a shorter tail. The same bank used on several tracks or voices counts once, and factory sounds are small.
 
 ## Credits and license
 

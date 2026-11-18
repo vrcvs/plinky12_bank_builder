@@ -110,6 +110,20 @@ footer p{margin:6px 0}
     <textarea id="desc" placeholder="Short description shown in the editor"></textarea>
   </div>
   <div style="margin-top:12px">
+    <label>Banks loaded together</label>
+    <div class="radio">
+      <label><input type="radio" name="together" value="1">
+        <span><strong>1 bank</strong><small>Best quality: up to about 65 s of audio (8 MB). It takes almost all of Plinky's sample memory: no other bank of this size fits next to it.</small></span></label>
+      <label><input type="radio" name="together" value="2">
+        <span><strong>2 banks</strong><small>Up to 50 s of audio (about 6 MB), about 6 s per note with 8 samples.</small></span></label>
+      <label><input type="radio" name="together" value="3" checked>
+        <span><strong>3 banks</strong><small>Up to 33 s of audio (about 4 MB), about 4 s per note. For panels with 3 voices, like NEVE.</small></span></label>
+      <label><input type="radio" name="together" value="4">
+        <span><strong>4 banks</strong><small>Up to 25 s of audio (about 3 MB), about 3 s per note. For panels with 4 tracks, like QU4TTRO.</small></span></label>
+    </div>
+    <p class="hint">Plinky 12 keeps the samples of the loaded sounds in 14 MB of memory. Choose how many of your banks you want to play at the same time: the app shortens the notes to fit. Sustained sounds keep looping, so they lose little; pianos and plucks get a shorter tail.</p>
+  </div>
+  <div style="margin-top:12px">
     <label>Instrument type</label>
     <div class="radio">
       <label><input type="radio" name="kind" value="decay" checked>
@@ -122,7 +136,7 @@ footer p{margin:6px 0}
 
 <section>
   <h2>3 · Create the bank</h2>
-  <p class="hint" style="margin-top:0">Each bank gets 8 presets (00 to 07), one per variation, all using your samples. Total audio is limited to about 65 s, shared between the samples, so long samples are shortened automatically.</p>
+  <p class="hint" style="margin-top:0">Each bank gets 8 presets (00 to 07), one per variation, all using your samples. Total audio is limited by the "banks loaded together" choice (65, 50, 33 or 25 s), shared between the samples, so long samples are shortened automatically.</p>
   <div class="actions">
     <button id="pickdir">Choose output folder…</button>
     <span class="hint" id="dirname" style="align-self:center">No folder chosen</span>
@@ -151,6 +165,12 @@ const $ = (id) => document.getElementById(id);
 
 // ---------- constants (same values as the verified build scripts) ----------
 const SR = 32000, GAP = 64, CHUNK = 16384, TAPE_MAX = 1 << 21, BUDGET = TAPE_MAX - 16384, SLOTS = 8;
+// Plinky 12 keeps the samples of every loaded sound in 14 MB of flash (about 114 s of audio: each second of tape takes
+// 4 bytes per sample, the audio plus its filtered octave copies). A bank sized for N banks at once leaves room for the
+// others plus a margin for the factory sounds. Seconds of audio per bank:
+const BANK_SECONDS = {1: BUDGET / SR, 2: 50, 3: 33, 4: 25};
+const FLASH_BYTES = 14 * 1024 * 1024;
+const tapeBytes = (samples) => samples * 4 + (samples / CHUNK) * 16;
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const PC = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
 const HUES = [14, 21, 35, 49, 63, 77, 91, 105];
@@ -375,7 +395,7 @@ function makeIcon(kind) {
 }
 
 // ---------- the bank pipeline ----------
-async function buildBankFiles(kind, bank, artist, desc) {
+async function buildBankFiles(kind, bank, artist, desc, together) {
   const usable = samples.filter((s) => s.buf && s.note !== null).sort((a, b) => a.note - b.note);
   if (!usable.length) throw new Error('no usable samples');
   if (usable.length > SLOTS) throw new Error(`${usable.length} samples: Plinky 12 has ${SLOTS} slots, remove some`);
@@ -402,8 +422,9 @@ async function buildBankFiles(kind, bank, artist, desc) {
     log(`  ${nameOf(s.note)}: ${(segs[segs.length - 1].length / SR).toFixed(2)} s after trimming`);
   }
 
-  // length budget shared by all samples
-  const budget = BUDGET - GAP * segs.length;
+  // length budget shared by all samples, sized for the number of banks loaded together
+  const seconds = BANK_SECONDS[together] || BANK_SECONDS[1];
+  const budget = Math.min(BUDGET, Math.trunc(seconds * SR)) - GAP * segs.length;
   let cap = waterfill(segs.map((s) => s.length), budget);
   if (kind === 'sustain') cap = Math.min(cap, Math.trunc(8.0 * SR));
   const shaped = segs.map((s) => shape(s, cap, kind));
@@ -433,7 +454,8 @@ async function buildBankFiles(kind, bank, artist, desc) {
     starts.push(pos); ends.push(pos + s.length);
     pos += s.length + GAP;
   }
-  log(`Tape: ${(nTotal / SR).toFixed(1)} s. Encoding with the official Plinky 12 generator…`);
+  const mb = tapeBytes(nTotal) / (1024 * 1024);
+  log(`Tape: ${(nTotal / SR).toFixed(1)} s, about ${mb.toFixed(1)} MB of Plinky's 14 MB sample memory (${Math.round(100 * tapeBytes(nTotal) / FLASH_BYTES)}%). Encoding with the official Plinky 12 generator…`);
   await tick();
   const enc = prep.runPrepkitchen(input);
   if (!enc || !enc.tape) throw new Error('generator returned no tape');
@@ -467,9 +489,10 @@ function readSettings() {
   const bank = sanitize($('bank').value);
   const artist = sanitize($('artist').value);
   const kind = document.querySelector('input[name=kind]:checked').value;
+  const together = parseInt(document.querySelector('input[name=together]:checked').value, 10) || 1;
   if (!bank) throw new Error('enter a bank name');
   if (!artist) throw new Error('enter an artist folder name');
-  return {bank, artist, kind, desc: $('desc').value.trim()};
+  return {bank, artist, kind, together, desc: $('desc').value.trim()};
 }
 let busy = false;
 async function run(mode) {
@@ -479,8 +502,8 @@ async function run(mode) {
   busy = true; setButtons();
   try {
     if (mode === 'folder' && !dirHandle) throw new Error('choose an output folder first');
-    log(`Building ${st.bank} (${st.kind === 'decay' ? 'piano / one-shot' : 'wind / loop'})…`);
-    const files = await buildBankFiles(st.kind, st.bank, st.artist, st.desc);
+    log(`Building ${st.bank} (${st.kind === 'decay' ? 'piano / one-shot' : 'wind / loop'}, ${st.together} bank${st.together > 1 ? 's' : ''} together)…`);
+    const files = await buildBankFiles(st.kind, st.bank, st.artist, st.desc, st.together);
     if (mode === 'folder') {
       let cur = dirHandle;
       for (const seg of ['artists', st.artist, st.bank]) cur = await cur.getDirectoryHandle(seg, {create: true});
