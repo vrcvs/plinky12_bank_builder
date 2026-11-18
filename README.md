@@ -24,7 +24,9 @@ Plinky 12 keeps the samples of every loaded sound in 14 MB of memory (about 114 
 | 3 | 33 s | about 4 MB | about 4 s | NEVE (3 voices) |
 | 4 | 25 s | about 3 MB | about 3 s | QU4TTRO (4 tracks) |
 
-Long samples are shortened evenly and faded out. Sustained sounds keep looping, so they lose little; pianos and plucks get a shorter tail. The same bank used on several tracks or voices counts once, and factory sounds are small.
+Long samples are shortened evenly and faded out. Sustained sounds keep looping, so they lose little; pianos and plucks get a shorter tail.
+
+**Sustained sounds (wind / strings / voice)** loop the second half of each note with a crossfade. For a smooth loop the app keeps only the steady part of each note (it drops release tails, gaps and breaths), evens out the level after the attack so the loop does not swell or dip, and does not fade the end of the note to zero. The same bank used on several tracks or voices counts once, and factory sounds are small.
 
 ## Credits and license
 
